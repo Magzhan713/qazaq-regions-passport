@@ -3,6 +3,8 @@ name: Deploy GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -26,6 +28,11 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install openpyxl==3.1.5
+      - run: python scripts/fetch_stat_data.py
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm pages:build
       - uses: actions/configure-pages@v5

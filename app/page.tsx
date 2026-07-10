@@ -1,106 +1,137 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-const regions = [
-  { name: "Астана", score: 91.2, value: "1,24 трлн ₸", growth: "+14,8%", tone: "#18a999" },
-  { name: "Алматы", score: 88.7, value: "2,91 трлн ₸", growth: "+12,1%", tone: "#32b9a7" },
-  { name: "Атырауская", score: 84.3, value: "1,87 трлн ₸", growth: "+9,4%", tone: "#55c7b4" },
-  { name: "Карагандинская", score: 78.9, value: "1,15 трлн ₸", growth: "+7,8%", tone: "#78d2c1" },
-  { name: "Мангистауская", score: 76.4, value: "982 млрд ₸", growth: "+6,9%", tone: "#98ddcf" },
-];
+type Region = { name: string; value: number };
+type LiveData = {
+  meta: { generatedAt: string; source: string; sourceUrl: string; live: boolean };
+  demography: {
+    population: number; populationGrowth: number | null; populationDate: string;
+    births: number; birthsDate: string; deaths: number; deathsDate: string;
+    naturalIncrease: number; series: { year: number; value: number }[]; regions: Region[];
+  };
+  telecom: {
+    marketVolumeMln: number; mobileSubscribersThousand: number; fixedInternetThousand: number;
+    mobileDensity: number; mobileInternetThousand?: number; reportPeriod: string; sourceUrl: string;
+  };
+};
 
-const trend = [42, 47, 45, 55, 58, 64, 61, 69, 72, 78, 82, 88];
-const market = [
-  ["Мобильная связь", 38, "#123a62"],
-  ["Фиксированный интернет", 27, "#18a999"],
-  ["Передача данных", 21, "#f0b44d"],
-  ["Прочее", 14, "#d9e2ea"],
-] as const;
-const heat = [64, 78, 45, 88, 72, 52, 93, 61, 84, 69, 38, 74, 57, 81, 66, 49, 76, 90, 55, 71, 43, 82, 68, 59];
+const number = new Intl.NumberFormat("ru-RU");
+const compact = (value: number) => value >= 1_000_000 ? `${(value / 1_000_000).toFixed(2)} млн` : value >= 1_000 ? `${(value / 1_000).toFixed(1)} тыс.` : number.format(value);
+const shortRegion = (name: string) => name.replace(/ Облысы/gi, "").replace(/ Қаласы/gi, "").replace(/ Город/gi, "");
 
-function Icon({ children }: { children: string }) {
-  return <span className="nav-icon" aria-hidden="true">{children}</span>;
-}
+function Icon({ children }: { children: string }) { return <span className="nav-icon" aria-hidden="true">{children}</span>; }
 
 export default function Home() {
-  const [period, setPeriod] = useState("2025");
+  const [data, setData] = useState<LiveData | null>(null);
+  const [error, setError] = useState(false);
   const [region, setRegion] = useState("Все регионы");
   const [tab, setTab] = useState<"overview" | "telecom">("overview");
-  const [compact, setCompact] = useState(false);
+  const [isCompact, setCompact] = useState(false);
   const [notice, setNotice] = useState(false);
+
+  useEffect(() => {
+    fetch("./data/statistics.json", { cache: "no-store" })
+      .then(response => { if (!response.ok) throw new Error("data"); return response.json(); })
+      .then(setData)
+      .catch(() => setError(true));
+  }, []);
+
   const activeRegion = useMemo(() => region === "Все регионы" ? "Республика Казахстан" : region, [region]);
+  const updateTime = data ? new Date(data.meta.generatedAt).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" }) : "загрузка…";
 
-  return (
-    <main className={compact ? "app compact" : "app"}>
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">Q</div><div><b>Qazaq Data</b><span>Аналитическая платформа</span></div></div>
-        <nav aria-label="Основная навигация">
-          <button className={tab === "overview" ? "active" : ""} onClick={() => setTab("overview")}><Icon>◫</Icon><span>Паспорт регионов</span></button>
-          <button onClick={() => setTab("overview")}><Icon>⌁</Icon><span>Сравнение</span></button>
-          <button className={tab === "telecom" ? "active" : ""} onClick={() => setTab("telecom")}><Icon>⌁</Icon><span>Телеком-рынок</span></button>
-          <button onClick={() => document.getElementById("methodology")?.scrollIntoView({ behavior: "smooth" })}><Icon>▤</Icon><span>Источники данных</span></button>
-        </nav>
-        <div className="sidebar-bottom"><div className="status-dot" /> <span>Демо-режим</span><small>v 0.9</small></div>
-      </aside>
+  return <main className={isCompact ? "app compact" : "app"}>
+    <aside className="sidebar">
+      <div className="brand"><div className="brand-mark">Q</div><div><b>Qazaq Data</b><span>Аналитическая платформа</span></div></div>
+      <nav aria-label="Основная навигация">
+        <button className={tab === "overview" ? "active" : ""} onClick={() => setTab("overview")}><Icon>◫</Icon><span>Паспорт регионов</span></button>
+        <button onClick={() => document.getElementById("rating")?.scrollIntoView({ behavior: "smooth" })}><Icon>⌁</Icon><span>Сравнение</span></button>
+        <button className={tab === "telecom" ? "active" : ""} onClick={() => setTab("telecom")}><Icon>⌁</Icon><span>Телеком-рынок</span></button>
+        <button onClick={() => document.getElementById("methodology")?.scrollIntoView({ behavior: "smooth" })}><Icon>▤</Icon><span>Источники данных</span></button>
+      </nav>
+      <div className="sidebar-bottom"><div className="status-dot" /><span>{data ? "Данные актуальны" : "Подключение…"}</span><small>LIVE</small></div>
+    </aside>
 
-      <section className="workspace">
-        <header className="topbar">
-          <div className="mobile-brand"><b>Qazaq Data</b></div>
-          <div className="filters">
-            <label>Период<select value={period} onChange={e => setPeriod(e.target.value)}><option>2025</option><option>2024</option><option>2023</option></select></label>
-            <label>Регион<select value={region} onChange={e => setRegion(e.target.value)}><option>Все регионы</option><option>Астана</option><option>Алматы</option><option>Атырауская область</option></select></label>
-            <label>Показатель<select><option>Комплексный индекс</option><option>ВРП</option><option>Инвестиции</option></select></label>
-          </div>
-          <div className="top-actions"><button aria-label="Уведомления" onClick={() => setNotice(!notice)}>●</button><div className="avatar">AK</div></div>
-          {notice && <div className="notification">Обновлений пока нет</div>}
-        </header>
-
-        <div className="content">
-          <div className="demo-banner"><span>DEMO</span> Все показатели в прототипе — демонстрационные и не являются официальной статистикой.<button onClick={() => setCompact(!compact)}>{compact ? "Обычный вид" : "Компактный вид"}</button></div>
-          <div className="title-row"><div><p className="eyebrow">ЦИФРОВОЙ ПАСПОРТ • {period}</p><h1>{tab === "overview" ? activeRegion : "Телеком-рынок Казахстана"}</h1><p>{tab === "overview" ? "Экономика, инфраструктура и качество жизни — в одном окне" : "Ключевые показатели отрасли связи и цифровой инфраструктуры"}</p></div><button className="export" onClick={() => window.print()}>↗ Экспорт отчёта</button></div>
-
-          {tab === "overview" ? <Overview period={period} setRegion={setRegion} /> : <Telecom />}
-
-          <section className="method card" id="methodology">
-            <div className="section-head"><div><span className="kicker">ПРОЗРАЧНОСТЬ ДАННЫХ</span><h2>Источники и методология</h2></div><button onClick={() => alert("Методология в демо-версии")}>Открыть методологию ↗</button></div>
-            <div className="source-table"><div className="source-row header"><span>Набор данных</span><span>Источник</span><span>Периодичность</span><span>Статус</span></div>{[
-              ["Региональные показатели", "Демонстрационный набор", "Ежеквартально"],
-              ["Телеком-показатели", "Демонстрационный набор", "Ежегодно"],
-              ["Инфраструктура и рынок", "Демонстрационный набор", "Ежемесячно"],
-            ].map((x, i) => <div className="source-row" key={i}><span><i className="file-icon">▤</i>{x[0]}</span><span>{x[1]}</span><span>{x[2]}</span><span><b className="verified">● ДЕМО</b></span></div>)}</div>
-          </section>
-          <footer>Прототип аналитической платформы <span>•</span> Данные не предназначены для принятия решений</footer>
+    <section className="workspace">
+      <header className="topbar">
+        <div className="mobile-brand"><b>Qazaq Data</b></div>
+        <div className="filters">
+          <label>Период<select><option>{data?.demography.populationDate.slice(-4) || "последний"}</option></select></label>
+          <label>Регион<select value={region} onChange={event => setRegion(event.target.value)}><option>Все регионы</option>{data?.demography.regions.slice(0, 20).map(item => <option key={item.name}>{item.name}</option>)}</select></label>
+          <label>Источник<select><option>stat.gov.kz</option></select></label>
         </div>
-      </section>
-    </main>
-  );
+        <div className="top-actions"><button aria-label="Статус обновления" onClick={() => setNotice(!notice)}>●</button><div className="avatar">KZ</div></div>
+        {notice && <div className="notification">Последнее обновление: {updateTime}</div>}
+      </header>
+
+      <div className="content">
+        <div className={error ? "demo-banner" : "demo-banner live-banner"}><span>{error ? "OFFLINE" : "LIVE"}</span>{error ? "Не удалось загрузить набор данных. Показатели временно недоступны." : <>Официальные выгрузки Бюро национальной статистики • обновлено {updateTime}</>}<button onClick={() => setCompact(!isCompact)}>{isCompact ? "Обычный вид" : "Компактный вид"}</button></div>
+        <div className="title-row"><div><p className="eyebrow">ЦИФРОВОЙ ПАСПОРТ • ЖИВЫЕ ДАННЫЕ</p><h1>{tab === "overview" ? activeRegion : "Телеком-рынок Казахстана"}</h1><p>{tab === "overview" ? "Демография и региональная структура по официальным публикациям" : data?.telecom.reportPeriod || "Последняя официальная публикация"}</p></div><button className="export" onClick={() => window.print()}>↗ Экспорт отчёта</button></div>
+
+        {!data ? <Loading /> : tab === "overview" ? <Overview data={data} setRegion={setRegion} /> : <Telecom data={data} />}
+
+        <section className="method card" id="methodology">
+          <div className="section-head"><div><span className="kicker">ПРОЗРАЧНОСТЬ ДАННЫХ</span><h2>Источники и методология</h2></div><a href="https://stat.gov.kz/" target="_blank" rel="noreferrer">Открыть источник ↗</a></div>
+          <div className="source-table"><div className="source-row header"><span>Набор данных</span><span>Источник</span><span>Периодичность</span><span>Статус</span></div>
+            <Source name="Численность населения" period="Ежегодно" date={data?.demography.populationDate} />
+            <Source name="Рождаемость и смертность" period="Ежегодно" date={data?.demography.birthsDate} />
+            <Source name="Показатели связи" period="Ежемесячно" date={data?.telecom.reportPeriod} />
+          </div>
+        </section>
+        <footer>Источник: stat.gov.kz <span>•</span> Автообновление ежедневно <span>•</span> Последняя успешная копия сохраняется в публикации</footer>
+      </div>
+    </section>
+  </main>;
 }
 
-function Overview({ period, setRegion }: { period: string; setRegion: (v: string) => void }) {
+function Loading() { return <section className="kpis">{[1,2,3,4].map(i => <article className="kpi card" key={i}><div className="kpi-symbol s0">…</div><div><span>Загрузка официальных данных</span><strong>—</strong></div></article>)}</section>; }
+
+function Source({ name, period, date }: { name: string; period: string; date?: string }) {
+  return <div className="source-row"><span><i className="file-icon">▤</i>{name}</span><span>Бюро национальной статистики</span><span>{period}</span><span><b className="verified">● LIVE {date ? `• ${date}` : ""}</b></span></div>;
+}
+
+function Overview({ data, setRegion }: { data: LiveData; setRegion: (value: string) => void }) {
+  const d = data.demography;
+  const selected = d.regions.slice(0, 6);
+  const max = Math.max(...selected.map(item => item.value));
+  const trendMin = Math.min(...d.series.map(item => item.value));
+  const trendMax = Math.max(...d.series.map(item => item.value));
+  const trendHeight = (value: number) => 34 + ((value - trendMin) / Math.max(1, trendMax - trendMin)) * 60;
+  const kpis = [
+    ["Население", compact(d.population), `на ${d.populationDate}`, `${d.populationGrowth && d.populationGrowth >= 0 ? "+" : ""}${d.populationGrowth ?? "—"}%`],
+    ["Родившиеся", compact(d.births), `за ${d.birthsDate.slice(-4)} год`, "официально"],
+    ["Умершие", compact(d.deaths), `за ${d.deathsDate.slice(-4)} год`, "официально"],
+    ["Естественный прирост", compact(d.naturalIncrease), "человек", d.naturalIncrease >= 0 ? "положительный" : "отрицательный"],
+  ];
   return <>
-    <section className="kpis">
-      {[['Комплексный индекс','76,4','из 100','+3,8 п.'],['Валовой региональный продукт','42,9','трлн ₸','+6,1%'],['Инвестиции','18,2','трлн ₸','+9,7%'],['Население','20,3','млн чел.','+1,2%']].map((k, i) => <article className="kpi card" key={k[0]}><div className={`kpi-symbol s${i}`}>{['◎','₸','↗','◉'][i]}</div><div><span>{k[0]}</span><strong>{k[1]} <small>{k[2]}</small></strong><em>{k[3]} <i>к {Number(period)-1}</i></em></div></article>)}
-    </section>
+    <section className="kpis">{kpis.map((item, i) => <article className="kpi card" key={item[0]}><div className={`kpi-symbol s${i}`}>{["◉","↗","◎","+"][i]}</div><div><span>{item[0]}</span><strong>{item[1]} <small>{item[2]}</small></strong><em>{item[3]} <i>• stat.gov.kz</i></em></div></article>)}</section>
 
     <section className="grid map-grid">
-      <article className="map-card card"><div className="section-head"><div><span className="kicker">ТЕРРИТОРИАЛЬНЫЙ СРЕЗ</span><h2>Индекс развития регионов</h2></div><div className="legend"><span /> низкий <span /> высокий</div></div><div className="kaz-map" aria-label="Стилизованная карта Казахстана"><div className="map-label astana">Астана<b>91,2</b></div><div className="map-label almaty">Алматы<b>88,7</b></div><div className="map-label atyrau">Атырау<b>84,3</b></div><div className="map-label karaganda">Караганда<b>78,9</b></div></div><div className="map-note">Наведите на регион для просмотра показателей</div></article>
-      <article className="rating card"><div className="section-head"><div><span className="kicker">ТОП РЕГИОНОВ</span><h2>Рейтинг развития</h2></div><button onClick={() => alert("Показан полный демо-рейтинг")}>Все 20 ↗</button></div><div className="rating-list">{regions.map((r, i) => <button key={r.name} onClick={() => setRegion(r.name)}><b>{i+1}</b><span>{r.name}<small>{r.value} • {r.growth}</small></span><i><em style={{width: `${r.score}%`, background:r.tone}} /><strong>{r.score}</strong></i></button>)}</div></article>
+      <article className="map-card card"><div className="section-head"><div><span className="kicker">ТЕРРИТОРИАЛЬНЫЙ СРЕЗ</span><h2>Крупнейшие регионы по населению</h2></div><div className="legend"><span /> меньше <span /> больше</div></div><div className="kaz-map" aria-label="Карта Казахстана">{selected.slice(0,4).map((item,i) => <button className={`map-label ${["astana","almaty","atyrau","karaganda"][i]}`} key={item.name} onClick={() => setRegion(item.name)}>{shortRegion(item.name)}<b>{compact(item.value)}</b></button>)}</div><div className="map-note">Значения на {d.populationDate}; нажмите на регион</div></article>
+      <article className="rating card" id="rating"><div className="section-head"><div><span className="kicker">ОФИЦИАЛЬНЫЙ СРЕЗ</span><h2>Рейтинг по населению</h2></div><small>{d.populationDate}</small></div><div className="rating-list">{selected.map((item,i) => <button key={item.name} onClick={() => setRegion(item.name)}><b>{i+1}</b><span>{shortRegion(item.name)}<small>{number.format(item.value)} чел.</small></span><i><em style={{width:`${item.value/max*100}%`,background:["#18a999","#32b9a7","#55c7b4","#78d2c1","#98ddcf","#b9e7dc"][i]}} /><strong>{(item.value/d.population*100).toFixed(1)}%</strong></i></button>)}</div></article>
     </section>
 
     <section className="grid charts-grid">
-      <article className="trend card"><div className="section-head"><div><span className="kicker">ДИНАМИКА</span><h2>Индекс деловой активности</h2></div><select aria-label="Период графика"><option>12 месяцев</option><option>6 месяцев</option></select></div><div className="chart-area"><div className="axis"><span>100</span><span>75</span><span>50</span><span>25</span></div><div className="bars">{trend.map((v,i)=><div className="bar-wrap" key={i}><div className="bar" style={{height:`${v}%`}} title={`${v} пунктов`} /><span>{['Янв','','Мар','','Май','','Июл','','Сен','','Ноя','Дек'][i]}</span></div>)}</div></div></article>
-      <article className="structure card"><div className="section-head"><div><span className="kicker">СТРУКТУРА РЫНКА</span><h2>Отрасли экономики</h2></div></div><div className="donut" style={{background:`conic-gradient(#123a62 0 38%, #18a999 38% 65%, #f0b44d 65% 86%, #d9e2ea 86%)`}}><div><strong>42,9</strong><span>трлн ₸</span></div></div><div className="market-legend">{market.map(m => <div key={m[0]}><span style={{background:m[2]}} />{m[0]}<b>{m[1]}%</b></div>)}</div></article>
+      <article className="trend card"><div className="section-head"><div><span className="kicker">ДИНАМИКА</span><h2>Численность населения</h2></div><span className="live-chip">● LIVE</span></div><div className="chart-area"><div className="axis"><span>{(trendMax/1e6).toFixed(1)}м</span><span>динамика</span><span>{(trendMin/1e6).toFixed(1)}м</span></div><div className="bars">{d.series.map(item => <div className="bar-wrap" key={item.year}><div className="bar" style={{height:`${trendHeight(item.value)}%`}} title={`${item.year}: ${number.format(item.value)}`} /><span>{item.year}</span></div>)}</div></div></article>
+      <article className="structure card"><div className="section-head"><div><span className="kicker">СТРУКТУРА</span><h2>Доля крупнейших регионов</h2></div></div><div className="donut" style={{background:`conic-gradient(#123a62 0 ${selected[0].value/d.population*100}%, #18a999 ${selected[0].value/d.population*100}% ${(selected[0].value+selected[1].value)/d.population*100}%, #f0b44d ${(selected[0].value+selected[1].value)/d.population*100}% 32%, #d9e2ea 32%)`}}><div><strong>{compact(d.population)}</strong><span>всего</span></div></div><div className="market-legend">{selected.slice(0,3).map((item,i)=><div key={item.name}><span style={{background:["#123a62","#18a999","#f0b44d"][i]}} />{shortRegion(item.name)}<b>{(item.value/d.population*100).toFixed(1)}%</b></div>)}<div><span style={{background:"#d9e2ea"}} />Другие регионы<b>{(100-selected.slice(0,3).reduce((sum,item)=>sum+item.value/d.population*100,0)).toFixed(1)}%</b></div></div></article>
     </section>
 
-    <section className="heat card"><div className="section-head"><div><span className="kicker">СРАВНИТЕЛЬНЫЙ АНАЛИЗ</span><h2>Матрица показателей по регионам</h2></div><select><option>Нормализованный индекс</option></select></div><div className="heat-scroll"><div className="heat-grid"><div className="heat-y"><span>ВРП</span><span>Инвестиции</span><span>Доходы</span><span>Интернет</span></div><div className="heat-cells">{heat.map((v,i)=><div key={i} title={`${v} пунктов`} style={{background:`color-mix(in srgb, #18a999 ${v}%, #e8f0f3)`}}>{v}</div>)}</div></div><div className="heat-x"><span>Астана</span><span>Алматы</span><span>Атырау</span><span>Караганда</span><span>Шымкент</span><span>Актау</span></div></div></section>
+    <section className="heat card"><div className="section-head"><div><span className="kicker">СРАВНИТЕЛЬНЫЙ АНАЛИЗ</span><h2>Матрица населения регионов</h2></div><span className="live-chip">на {d.populationDate}</span></div><div className="heat-scroll"><div className="heat-grid"><div className="heat-y"><span>Население</span><span>Доля страны</span><span>Индекс</span><span>Ранг</span></div><div className="heat-cells">{[...selected,...selected,...selected,...selected].map((item,i)=>{const row=Math.floor(i/6); const value=[item.value/max*100,item.value/d.population*500,item.value/max*100,100-(i%6)*12][row]; return <div key={`${row}-${item.name}`} title={number.format(item.value)} style={{background:`color-mix(in srgb, #18a999 ${Math.max(25,value)}%, #e8f0f3)`}}>{row===0?compact(item.value):row===1?`${(item.value/d.population*100).toFixed(1)}%`:row===2?Math.round(item.value/max*100):i%6+1}</div>})}</div></div><div className="heat-x">{selected.map(item=><span key={item.name}>{shortRegion(item.name)}</span>)}</div></div></section>
   </>;
 }
 
-function Telecom() {
+function Telecom({ data }: { data: LiveData }) {
+  const t = data.telecom;
+  const kpis = [
+    ["Объём услуг связи", `${(t.marketVolumeMln/1000).toFixed(1)}`, "млрд ₸", "за период"],
+    ["Абоненты мобильной связи", `${(t.mobileSubscribersThousand/1000).toFixed(2)}`, "млн", "официально"],
+    ["Фиксированный интернет", `${(t.fixedInternetThousand/1000).toFixed(2)}`, "млн", "абонентов"],
+    ["Мобильная плотность", number.format(t.mobileDensity), "на 100 чел.", "официально"],
+  ];
+  const internetShare = t.mobileInternetThousand ? t.mobileInternetThousand / t.mobileSubscribersThousand * 100 : 0;
   return <>
-    <section className="kpis telecom-kpis">{[['Объём рынка','1,18','трлн ₸','+11,4%'],['Абоненты мобильной связи','26,7','млн','+4,2%'],['Покрытие 4G','94,1','% населения','+2,7 п.'],['Средняя скорость','48,6','Мбит/с','+18,9%']].map((k,i)=><article className="kpi card" key={k[0]}><div className={`kpi-symbol s${i}`}>{['₸','◉','⌁','↗'][i]}</div><div><span>{k[0]}</span><strong>{k[1]} <small>{k[2]}</small></strong><em>{k[3]} <i>г/г</i></em></div></article>)}</section>
-    <section className="grid telecom-grid"><article className="card operator"><div className="section-head"><div><span className="kicker">КОНКУРЕНТНАЯ СРЕДА</span><h2>Структура абонентской базы</h2></div></div>{[['Оператор A',37,'#123a62'],['Оператор B',29,'#18a999'],['Оператор C',21,'#f0b44d'],['Другие',13,'#b8c7d2']].map(x=><div className="operator-row" key={x[0]}><span>{x[0]}</span><div><i style={{width:`${x[1]}%`,background:x[2]}} /></div><b>{x[1]}%</b></div>)}</article><article className="card coverage"><div className="section-head"><div><span className="kicker">ИНФРАСТРУКТУРА</span><h2>Цифровое покрытие</h2></div></div><div className="coverage-ring"><strong>94,1%</strong><span>4G</span></div><div className="coverage-stats"><p><b>7 420</b><span>базовых станций</span></p><p><b>128 тыс. км</b><span>волоконных линий</span></p><p><b>82,4%</b><span>домохозяйств онлайн</span></p></div></article></section>
-    <section className="card telecom-story"><span className="kicker">ДИНАМИКА РЫНКА</span><h2>Выручка телеком-сектора</h2><div className="telecom-bars">{[54,61,66,72,79,91].map((v,i)=><div key={i}><b>{0.62+i*.11 > 1 ? (0.62+i*.11).toFixed(2) : (0.62+i*.11).toFixed(2)}</b><i style={{height:`${v}%`}} /><span>{2020+i}</span></div>)}</div></section>
+    <section className="kpis telecom-kpis">{kpis.map((item,i)=><article className="kpi card" key={item[0]}><div className={`kpi-symbol s${i}`}>{["₸","◉","⌁","↗"][i]}</div><div><span>{item[0]}</span><strong>{item[1]} <small>{item[2]}</small></strong><em>{item[3]} <i>• LIVE</i></em></div></article>)}</section>
+    <section className="grid telecom-grid"><article className="card operator"><div className="section-head"><div><span className="kicker">АБОНЕНТСКАЯ БАЗА</span><h2>Доступ к услугам связи</h2></div></div>{[["Мобильная связь",100,"#123a62"],["Мобильный интернет",internetShare,"#18a999"],["Фиксированный интернет",t.fixedInternetThousand/t.mobileSubscribersThousand*100,"#f0b44d"]].map(item=><div className="operator-row" key={item[0] as string}><span>{item[0]}</span><div><i style={{width:`${item[1]}%`,background:item[2]}} /></div><b>{Number(item[1]).toFixed(1)}%</b></div>)}</article><article className="card coverage"><div className="section-head"><div><span className="kicker">ПЛОТНОСТЬ СВЯЗИ</span><h2>На 100 жителей</h2></div></div><div className="coverage-ring"><strong>{number.format(t.mobileDensity)}</strong><span>SIM-карт</span></div><div className="coverage-stats"><p><b>{compact(t.mobileSubscribersThousand*1000)}</b><span>мобильных абонентов</span></p><p><b>{compact(t.fixedInternetThousand*1000)}</b><span>фиксированный интернет</span></p><p><b>{data.demography.populationDate}</b><span>демографический срез</span></p></div></article></section>
+    <section className="card telecom-story"><span className="kicker">ОФИЦИАЛЬНАЯ ПУБЛИКАЦИЯ</span><h2>{t.reportPeriod}</h2><div className="telecom-bars">{[["Объём связи",t.marketVolumeMln/1000,92],["Мобильные абоненты",t.mobileSubscribersThousand/1000,78],["Фикс. интернет",t.fixedInternetThousand/1000,48],["Плотность",t.mobileDensity,65]].map(item=><div key={item[0] as string}><b>{Number(item[1]).toFixed(1)}</b><i style={{height:`${item[2]}%`}} /><span>{item[0]}</span></div>)}</div></section>
   </>;
 }
